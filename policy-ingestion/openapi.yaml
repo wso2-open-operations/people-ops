@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: WSO2 Policy Ingestion Service API
+  description: Background service for extracting, chunking, embedding, and indexing policy documents into pgvector.
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+paths:
+  /health:
+    get:
+      summary: Liveness probe
+      description: Returns service liveness status.
+      operationId: getHealth
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness probe
+      description: Verifies database connectivity and readiness to serve requests.
+      operationId: getReady
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Database is connected and service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Database connectivity unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /embed:
+    post:
+      summary: Generate vector embeddings
+      description: Internal endpoint for single query or batch text embedding generation.
+      operationId: embedText
+      tags:
+        - Utility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbedRequest'
+      responses:
+        '200':
+          description: Successfully generated embedding vectors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbedResponse'
+        '400':
+          description: Missing text or texts payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: policy-ingestion
+
+    ReadyResponse:
+      type: object
+      required:
+        - status
+        - database
+      properties:
+        status:
+          type: string
+          example: ready
+        database:
+          type: string
+          example: connected
+
+    EmbedRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 10000
+          description: Single text string to embed (max 10,000 characters)
+          example: How do I apply for annual leave?
+        texts:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+          description: Batch of text strings to embed (max 100 items)
+
+    EmbedResponse:
+      type: object
+      properties:
+        embedding:
+          type: array
+          items:
+            type: number
+          description: 768-dimensional float vector for single query
+        dimension:
+          type: integer
+          example: 768
+        embeddings:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+          description: List of 768-dimensional vectors for batch input
+        count:
+          type: integer
+          example: 2
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          example: Database connectivity unavailable
