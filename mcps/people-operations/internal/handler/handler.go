@@ -135,7 +135,12 @@ func (h *Handler) Tools(w http.ResponseWriter, r *http.Request) {
 
 	toolName := strings.TrimPrefix(r.URL.Path, "/tools/")
 	if !validToolNameRegex.MatchString(toolName) {
-		http.Error(w, `{"error":"Invalid tool name format"}`, http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid tool name format",
+		})
 		return
 	}
 
@@ -154,7 +159,12 @@ func (h *Handler) Tools(w http.ResponseWriter, r *http.Request) {
 	// Parse incoming arguments payload
 	var args map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&args); err != nil && err != io.EOF {
-		http.Error(w, `{"error":"Invalid JSON payload"}`, http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid JSON payload",
+		})
 		return
 	}
 	if args == nil {
@@ -608,16 +618,18 @@ func (h *Handler) buildCommutePayload(
 		metaURL := fmt.Sprintf("%s/subscriptions/meta-info", h.cfg.SubscriptionBackendURL)
 		metaReq, err := http.NewRequestWithContext(ctx, http.MethodGet, metaURL, nil)
 		if err != nil {
+			slog.Error("Failed to create subscription distance range request", "error", err)
 			return nil, http.StatusBadGateway,
-				"Failed to create request for subscription distance ranges: " + err.Error()
+				"Failed to create request for subscription distance ranges"
 		}
 		metaReq.Header.Set("Authorization", "Bearer "+jwtToken)
 		metaReq.Header.Set("x-jwt-assertion", jwtToken)
 
 		metaResp, err := h.cfg.HTTPClient.Do(metaReq)
 		if err != nil {
+			slog.Error("Failed to reach subscription service to resolve distance range", "error", err)
 			return nil, http.StatusBadGateway,
-				"Failed to reach subscription service to resolve distance range: " + err.Error()
+				"Failed to reach subscription service to resolve distance range"
 		}
 		defer metaResp.Body.Close()
 
@@ -687,7 +699,7 @@ func (h *Handler) proxyBackendRequest(
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
-			"message": "Failed to create backend request: " + reqErr.Error(),
+			"message": "Failed to create backend request",
 		})
 		return
 	}
@@ -705,7 +717,7 @@ func (h *Handler) proxyBackendRequest(
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
-			"message": "Failed to reach backend: " + err.Error(),
+			"message": "Failed to reach downstream service. Please try again later.",
 		})
 		return
 	}
